@@ -1,0 +1,15 @@
+﻿@page "/"
+@using BalanzaDigitalUg.Web.Components.Account.Shared
+
+<AuthorizeView>
+    <Authorized>
+        <PageTitle>Home</PageTitle>
+
+        <h1>Hello, world!</h1>
+
+        Welcome to your new app.
+    </Authorized>
+    <NotAuthorized>
+        <RedirectToLogin/>
+    </NotAuthorized>
+</AuthorizeView>

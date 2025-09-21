@@ -10,10 +10,30 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Tamanio> Tamanios { get; set; }
     public DbSet<MaterialReciclado> MaterialesReciclados { get; set; }
     public DbSet<Registros> Registros { get; set; }
+    public DbSet<Comuna> Comunas { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<MaterialReciclado>()
+            .HasOne(m => m.Tipo)
+            .WithMany(t => t.MaterialesReciclados)
+            .HasForeignKey(m => m.TipoId);
+
+        modelBuilder.Entity<MaterialReciclado>()
+            .HasOne(m => m.Tamanio)
+            .WithMany(t => t.MaterialesReciclados)
+            .HasForeignKey(m => m.TamanioId);
+
+        modelBuilder.Entity<Registros>()
+            .Property(r => r.ProcesadoEnAppWeb)
+            .HasDefaultValue(false);
+
+        modelBuilder.Entity<Comuna>().HasMany(c => c.MaterialesReciclados)
+            .WithOne(m => m.Comuna)
+            .HasForeignKey(m => m.ComunaId);
+
 
         modelBuilder.Entity<TipoMaterial>().HasData(
             new TipoMaterial { Id = 1, Nombre = "Plástico" },
@@ -29,18 +49,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             new Tamanio { Id = 3, Nombre = "Grande", RangoAlturaAnchura = "20+ cm alto y 20+ cm ancho" }
         );
 
-        modelBuilder.Entity<MaterialReciclado>()
-            .HasOne(m => m.Tipo)
-            .WithMany(t => t.MaterialesReciclados)
-            .HasForeignKey(m => m.TipoId);
-
-        modelBuilder.Entity<MaterialReciclado>()
-            .HasOne(m => m.Tamanio)
-            .WithMany(t => t.MaterialesReciclados)
-            .HasForeignKey(m => m.TamanioId);
-
-        modelBuilder.Entity<Registros>()
-            .Property(r => r.ProcesadoEnAppWeb)
-            .HasDefaultValue(false);
+        modelBuilder.Entity<Comuna>().HasData(
+            new Comuna { Id = 1, Nombre = "Comuna 1" },
+            new Comuna { Id = 2, Nombre = "Comuna 2" }
+        );
     }
 }

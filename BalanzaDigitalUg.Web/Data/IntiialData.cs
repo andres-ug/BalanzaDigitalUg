@@ -19,4 +19,26 @@ public static class IntiialData
         if (await userManager.FindByEmailAsync(user2.Email) == null)
             await userManager.CreateAsync(user2, "User123!");
     }
+
+    public static async Task SeedRolesAsync(IServiceProvider serviceProvider)
+    {
+        var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        string[] roles = ["Admin", "Gestor"];
+        foreach (var role in roles)
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
+        }
+
+        // Asignar rol Admin al usuario admin
+        var adminUser = await userManager.FindByEmailAsync("admin@example.com");
+        if (adminUser != null && !await userManager.IsInRoleAsync(adminUser, "Admin"))
+            await userManager.AddToRoleAsync(adminUser, "Admin");
+
+        var gestorUser = await userManager.FindByEmailAsync("user@example.com");
+        if (gestorUser != null && !await userManager.IsInRoleAsync(gestorUser, "Gestor"))
+            await userManager.AddToRoleAsync(gestorUser, "Gestor");
+    }
 }

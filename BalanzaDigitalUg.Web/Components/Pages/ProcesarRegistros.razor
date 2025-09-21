@@ -1,0 +1,255 @@
+﻿<!-- Pantalla para procesar registros no procesados -->
+@page "/ProcesarRegistros"
+@using System.Security.Claims
+@using BalanzaDigitalUg.Web.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject NavigationManager NavigationManager
+@rendermode InteractiveServer
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<AuthorizeView Context="authorizeContext">
+
+    <PageTitle>Procesar Registros</PageTitle>
+
+    <h3 class="mb-4">Registros pendientes de procesar</h3>
+
+    @if (_registrosPendientes is null)
+    {
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>
+    }
+    else if (!_registrosPendientes.Any())
+    {
+        <div class="alert alert-info">No hay registros pendientes de procesar.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped table-bordered align-middle">
+                <thead class="table-dark">
+                <tr>
+                    <th>Id</th>
+                    <th>Uid</th>
+                    <th>Nombre</th>
+                    <th>Material</th>
+                    <th>Peso (kg)</th>
+                    <th>Fecha</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var reg in _registrosPaginaActual)
+                {
+                    <tr>
+                        <td>@reg.Id</td>
+                        <td>@reg.Uid</td>
+                        <td>@reg.Nombre</td>
+                        <td>@reg.Material</td>
+                        <td>@reg.Peso</td>
+                        <td>@reg.Fecha.ToString("g")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <nav>
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(_paginaActual == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="PaginaAnterior">Anterior</button>
+                </li>
+                @foreach (var pageNumber in Enumerable.Range(1, TotalPaginas))
+                {
+                    <li class="page-item @(_paginaActual == pageNumber ? "active" : "")">
+                        <button class="page-link"
+                                @onclick="() => GoToPage(pageNumber)">@(pageNumber.ToString())</button>
+                    </li>
+                }
+                <li class="page-item @(_paginaActual == TotalPaginas ? "disabled" : "")">
+                    <button class="page-link" @onclick="PaginaSiguiente">Siguiente</button>
+                </li>
+            </ul>
+        </nav>
+    }
+
+    <hr class="my-4"/>
+
+    <h4>Crear material reciclado y marcar registro como procesado</h4>
+    <EditForm Model="NuevoMaterial" OnSubmit="ProcesarRegistro" class="row g-3" FormName="materialesForm">
+        <DataAnnotationsValidator/>
+        <ValidationSummary class="text-danger"/>
+
+        <div class="col-md-4">
+            <label class="form-label">Registro a procesar</label>
+            <select class="form-select" @bind="_registroSeleccionadoId" required>
+                <option value="">Seleccione...</option>
+                @foreach (var reg in _registrosPendientes ?? [])
+                {
+                    <option value="@reg.Id">@($"{reg.Nombre} ({reg.Material}) - {reg.Fecha:g}")</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Tipo de material</label>
+            <select class="form-select" @bind="NuevoMaterial.TipoId" required>
+                <option value="">Seleccione...</option>
+                @foreach (var tipo in _tiposMaterial)
+                {
+                    <option value="@tipo.Id">@tipo.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Tamaño</label>
+            <select class="form-select" @bind="NuevoMaterial.TamanioId" required>
+                <option value="">Seleccione...</option>
+                @foreach (var tam in _tamanios)
+                {
+                    <option value="@tam.Id">@tam.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Comuna</label>
+            <select class="form-select" @bind="NuevoMaterial.ComunaId" required>
+                <option value="">Seleccione...</option>
+                @foreach (var comuna in _comunas)
+                {
+                    <option value="@comuna.Id">@comuna.Nombre</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Peso (kg)</label>
+            <InputNumber class="form-control" @bind-Value="NuevoMaterial.Peso" required/>
+        </div>
+        <div class="col-12">
+            <button class="btn btn-success" type="submit">Procesar registro</button>
+        </div>
+        @if (!string.IsNullOrEmpty(_mensaje))
+        {
+            <div class="alert alert-info mt-3">@_mensaje</div>
+        }
+    </EditForm>
+</AuthorizeView>
+
+@code {
+    [SupplyParameterFromForm] private MaterialReciclado NuevoMaterial { get; set; } = new();
+    private List<Registros>? _registrosPendientes;
+    private List<TipoMaterial> _tiposMaterial = [];
+    private List<Tamanio> _tamanios = [];
+    private List<Comuna> _comunas = [];
+    private int? _registroSeleccionadoId;
+    private string? _mensaje;
+
+    // Paginación
+    private int _paginaActual = 1;
+    private readonly int _tamanioPagina = 5;
+    private int TotalPaginas => _registrosPendientes is null ? 1 : (int)Math.Ceiling(_registrosPendientes.Count / (double)_tamanioPagina);
+
+    private IEnumerable<Registros> _registrosPaginaActual = [];
+
+    private void PaginaAnterior()
+    {
+        if (_paginaActual > 1)
+            _paginaActual--;
+        UpdateDisplayedItems();
+    }
+
+    private void PaginaSiguiente()
+    {
+        if (_paginaActual < TotalPaginas)
+            _paginaActual++;
+        UpdateDisplayedItems();
+    }
+
+    private void GoToPage(int pageNumber)
+    {
+        if (pageNumber < 1 || pageNumber > TotalPaginas) return;
+
+        _paginaActual = pageNumber;
+        UpdateDisplayedItems();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarDatosAsync();
+        UpdateDisplayedItems();
+    }
+
+    private async Task CargarDatosAsync()
+    {
+        _registrosPendientes = await Db.Registros
+            .Where(r => !r.ProcesadoEnAppWeb)
+            .OrderBy(r => r.Fecha)
+            .ToListAsync();
+
+        _tiposMaterial = await Db.TipoMateriales.OrderBy(t => t.Nombre).ToListAsync();
+        _tamanios = await Db.Tamanios.OrderBy(t => t.Nombre).ToListAsync();
+        _comunas = await Db.Comunas.OrderBy(c => c.Nombre).ToListAsync();
+        _paginaActual = 1; // Reiniciar a la primera página al recargar datos
+    }
+
+    private void UpdateDisplayedItems()
+    {
+        if (_registrosPendientes is null) return;
+        _registrosPaginaActual = _registrosPendientes
+            .Skip((_paginaActual - 1) * _tamanioPagina)
+            .Take(_tamanioPagina)
+            .ToList();
+    }
+
+    private async Task ProcesarRegistro()
+    {
+        // validar usuario autenticado
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        if (user.Identity is null || !user.Identity.IsAuthenticated)
+        {
+            _mensaje = "Usuario no autenticado.";
+            return;
+        }
+
+        if (_registroSeleccionadoId is null)
+        {
+            _mensaje = "Debe seleccionar un registro a procesar.";
+            return;
+        }
+
+        var registro = await Db.Registros.FindAsync(_registroSeleccionadoId.Value);
+        if (registro is null)
+        {
+            _mensaje = "Registro no encontrado.";
+            return;
+        }
+
+        var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _mensaje = "No se pudo obtener el ID del usuario autenticado.";
+            return;
+        }
+
+        var material = new MaterialReciclado
+        {
+            TipoId = NuevoMaterial.TipoId,
+            TamanioId = NuevoMaterial.TamanioId,
+            Peso = NuevoMaterial.Peso,
+            UsuarioId = userId,
+            ComunaId = NuevoMaterial.ComunaId,
+            FechaIngreso = DateTime.Now,
+        };
+        Db.MaterialesReciclados.Add(material);
+
+        // Marcar el registro como procesado
+        registro.ProcesadoEnAppWeb = true;
+        await Db.SaveChangesAsync();
+
+        _mensaje = "Registro procesado correctamente.";
+        // Limpiar formulario y recargar datos
+        NuevoMaterial = new();
+        _registroSeleccionadoId = null;
+        await CargarDatosAsync();
+        StateHasChanged();
+    }
+
+}

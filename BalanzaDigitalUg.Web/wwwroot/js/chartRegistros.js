@@ -1,6 +1,16 @@
 ﻿let chartRegistrosInstance = null;
 window.renderChartRegistros = (labels, values) => {
-    const ctx = document.getElementById('chartRegistros').getContext('2d');
+    const canvas = document.getElementById('chartRegistros');
+    if (!canvas) {
+        chartRegistrosInstance = null;
+        return;
+    }
+    const ctx = canvas.getContext('2d');
+    // Si la instancia existe pero el canvas cambió, destrúyela
+    if (chartRegistrosInstance && chartRegistrosInstance.ctx.canvas !== canvas) {
+        chartRegistrosInstance.destroy();
+        chartRegistrosInstance = null;
+    }
     if (chartRegistrosInstance) {
         chartRegistrosInstance.data.labels = labels;
         chartRegistrosInstance.data.datasets[0].data = values;
@@ -27,4 +37,3 @@ window.renderChartRegistros = (labels, values) => {
         });
     }
 };
-

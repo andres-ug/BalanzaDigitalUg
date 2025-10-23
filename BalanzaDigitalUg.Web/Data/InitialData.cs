@@ -2,7 +2,7 @@
 
 namespace BalanzaDigitalUg.Web.Data;
 
-public static class IntiialData
+public static class InitialData
 {
     public static async Task SeedUsersAsync(IServiceProvider serviceProvider)
     {

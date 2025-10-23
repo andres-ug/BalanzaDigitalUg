@@ -15,6 +15,10 @@
 
     <h3 class="mb-4">Registros pendientes de procesar</h3>
 
+    <div class="alert alert-info">Para procesar un registro, haga <b>doble clic</b> sobre la fila correspondiente en la
+        tabla.
+    </div>
+
     @if (_registrosPendientes is null)
     {
         <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div>
@@ -25,8 +29,8 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table table-striped table-bordered align-middle">
+        <div class="table-responsive d-flex justify-content-center">
+            <table class="table table-sm table-bordered align-middle" style="max-width:1000px;font-size:0.95em;">
                 <thead class="table-dark">
                 <tr>
                     <th>Id</th>
@@ -40,7 +44,8 @@
                 <tbody>
                 @foreach (var reg in _registrosPaginaActual)
                 {
-                    <tr>
+                    <tr ondblclick="@(() => OnRegistroDobleClick(reg.Id))"
+                        style="cursor:pointer;@(reg.Id == _registroSeleccionadoId ? "background-color:#e0f7fa;" : null)">
                         <td>@reg.Id</td>
                         <td>@reg.Uid</td>
                         <td>@reg.Nombre</td>
@@ -72,22 +77,21 @@
     }
 
     <hr class="my-4"/>
-
+    @if (!string.IsNullOrEmpty(_mensajeError))
+    {
+        <div class="alert alert-danger mt-3" id="alertError">@_mensajeError</div>
+    }
+    @if (!string.IsNullOrEmpty(_mensaje))
+    {
+        <div class="alert alert-info mt-3" id="alertMensaje">@_mensaje</div>
+    }
     <h4>Crear material reciclado y marcar registro como procesado</h4>
     <EditForm Model="NuevoMaterial" OnSubmit="ProcesarRegistro" class="row g-3" FormName="materialesForm">
         <DataAnnotationsValidator/>
         <ValidationSummary class="text-danger"/>
 
-        <div class="col-md-4">
-            <label class="form-label">Registro a procesar</label>
-            <select class="form-select" @bind="_registroSeleccionadoId" required>
-                <option value="">Seleccione...</option>
-                @foreach (var reg in _registrosPendientes ?? [])
-                {
-                    <option value="@reg.Id">@($"{reg.Nombre} ({reg.Material}) - {reg.Fecha:g}")</option>
-                }
-            </select>
-        </div>
+        <!-- Eliminado el select de registro a procesar -->
+
         <div class="col-md-4">
             <label class="form-label">Tipo de material</label>
             <select class="form-select" @bind="NuevoMaterial.TipoId" required>
@@ -99,14 +103,8 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">Tamaño</label>
-            <select class="form-select" @bind="NuevoMaterial.TamanioId" required>
-                <option value="">Seleccione...</option>
-                @foreach (var tam in _tamanios)
-                {
-                    <option value="@tam.Id">@tam.Nombre</option>
-                }
-            </select>
+            <label class="form-label">Peso (kg)</label>
+            <InputNumber class="form-control" @bind-Value="NuevoMaterial.Peso" required/>
         </div>
         <div class="col-md-4">
             <label class="form-label">Comuna</label>
@@ -118,17 +116,11 @@
                 }
             </select>
         </div>
-        <div class="col-md-4">
-            <label class="form-label">Peso (kg)</label>
-            <InputNumber class="form-control" @bind-Value="NuevoMaterial.Peso" required/>
-        </div>
+
         <div class="col-12">
             <button class="btn btn-success" type="submit">Procesar registro</button>
         </div>
-        @if (!string.IsNullOrEmpty(_mensaje))
-        {
-            <div class="alert alert-info mt-3">@_mensaje</div>
-        }
+
     </EditForm>
 </AuthorizeView>
 
@@ -136,10 +128,12 @@
     [SupplyParameterFromForm] private MaterialReciclado NuevoMaterial { get; set; } = new();
     private List<Registros>? _registrosPendientes;
     private List<TipoMaterial> _tiposMaterial = [];
-    private List<Tamanio> _tamanios = [];
     private List<Comuna> _comunas = [];
     private int? _registroSeleccionadoId;
     private string? _mensaje;
+    private string? _mensajeError;
+    private Timer? _alertTimer;
+    private Timer? _alertErrorTimer;
 
     // Paginación
     private int _paginaActual = 1;
@@ -184,7 +178,6 @@
             .ToListAsync();
 
         _tiposMaterial = await Db.TipoMateriales.OrderBy(t => t.Nombre).ToListAsync();
-        _tamanios = await Db.Tamanios.OrderBy(t => t.Nombre).ToListAsync();
         _comunas = await Db.Comunas.OrderBy(c => c.Nombre).ToListAsync();
         _paginaActual = 1; // Reiniciar a la primera página al recargar datos
     }
@@ -198,6 +191,30 @@
             .ToList();
     }
 
+    private void MostrarMensaje(string mensaje)
+    {
+        _mensaje = mensaje;
+        StateHasChanged();
+        _alertTimer?.Dispose();
+        _alertTimer = new Timer(_ =>
+        {
+            _mensaje = null;
+            InvokeAsync(StateHasChanged);
+        }, null, 3000, Timeout.Infinite);
+    }
+
+    private void MostrarMensajeError(string mensaje)
+    {
+        _mensajeError = mensaje;
+        StateHasChanged();
+        _alertErrorTimer?.Dispose();
+        _alertErrorTimer = new Timer(_ =>
+        {
+            _mensajeError = null;
+            InvokeAsync(StateHasChanged);
+        }, null, 3000, Timeout.Infinite);
+    }
+
     private async Task ProcesarRegistro()
     {
         // validar usuario autenticado
@@ -205,38 +222,38 @@
         var user = authState.User;
         if (user.Identity is null || !user.Identity.IsAuthenticated)
         {
-            _mensaje = "Usuario no autenticado.";
+            MostrarMensaje("Usuario no autenticado.");
             return;
         }
 
         if (_registroSeleccionadoId is null)
         {
-            _mensaje = "Debe seleccionar un registro a procesar.";
+            MostrarMensaje("Debe seleccionar un registro a procesar.");
             return;
         }
 
         var registro = await Db.Registros.FindAsync(_registroSeleccionadoId.Value);
         if (registro is null)
         {
-            _mensaje = "Registro no encontrado.";
+            MostrarMensaje("Registro no encontrado.");
             return;
         }
 
         var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
         {
-            _mensaje = "No se pudo obtener el ID del usuario autenticado.";
+            MostrarMensaje("No se pudo obtener el ID del usuario autenticado.");
             return;
         }
 
         var material = new MaterialReciclado
         {
             TipoId = NuevoMaterial.TipoId,
-            TamanioId = NuevoMaterial.TamanioId,
             Peso = NuevoMaterial.Peso,
             UsuarioId = userId,
             ComunaId = NuevoMaterial.ComunaId,
             FechaIngreso = DateTime.Now,
+            UsuarioBalanza = NuevoMaterial.UsuarioBalanza
         };
         Db.MaterialesReciclados.Add(material);
 
@@ -244,11 +261,34 @@
         registro.ProcesadoEnAppWeb = true;
         await Db.SaveChangesAsync();
 
-        _mensaje = "Registro procesado correctamente.";
+        MostrarMensaje("Registro procesado correctamente.");
         // Limpiar formulario y recargar datos
         NuevoMaterial = new();
         _registroSeleccionadoId = null;
-        await CargarDatosAsync();
+        await OnInitializedAsync();
+    }
+
+    private void OnRegistroDobleClick(int id)
+    {
+        _registroSeleccionadoId = id;
+        var registro = _registrosPendientes?.FirstOrDefault(r => r.Id == id);
+        if (registro != null)
+        {
+            var tipo = _tiposMaterial.FirstOrDefault(t => t.Nombre.Equals(registro.Material, StringComparison.OrdinalIgnoreCase));
+            if (tipo != null)
+            {
+                NuevoMaterial.TipoId = tipo.Id;
+                NuevoMaterial.Peso = registro.Peso;
+            }
+            else
+            {
+                NuevoMaterial.Peso = registro.Peso;
+                MostrarMensajeError($"No se encontró el tipo de material '{registro.Material}'. Selecciónelo manualmente.");
+            }
+
+            NuevoMaterial.UsuarioBalanza = registro.Nombre;
+        }
+       
         StateHasChanged();
     }
 

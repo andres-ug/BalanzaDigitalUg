@@ -6,7 +6,7 @@
 @inject IJSRuntime Js
 @rendermode InteractiveServer
 
-<AuthorizeView Roles="Admin">
+<AuthorizeView Roles="Gestor,Admin">
     <Authorized>
         <PageTitle>Home</PageTitle>
         <div class="container py-4">
@@ -45,22 +45,25 @@
                 </div>
             </div>
             <div class="row">
-                <div class="col-12">
-                    <canvas id="chartRegistros" height="120"></canvas>
+                <div class="col-12 d-flex justify-content-center">
+                    <div style="max-width:1800px;width:100%;">
+                        <canvas id="chartRegistros" height="90"></canvas>
+                    </div>
                 </div>
+                <div class="text-center mt-2 text-muted" style="font-size:1em;">Distribución de peso total por tipo de material (gráfico de pastel)</div>
             </div>
         </div>
 
         @code {
             private List<Comuna> _comunas = [];
             private List<ApplicationUser> _usuarios = [];
-            private DateTime? _fechaInicio;
-            private DateTime? _fechaFin;
+            private DateTime _fechaInicio = DateTime.Now.AddMonths(-1);
+            private DateTime _fechaFin = DateTime.Now;
             private int? _comunaId;
             private string? _usuarioId;
             private List<MaterialReciclado> _materiales = [];
-            private string[] _labels = Array.Empty<string>();
-            private double[] _values = Array.Empty<double>();
+            private string[] _labels = [];
+            private double[] _values = [];
             private bool _graficaPendiente = false;
 
 
@@ -88,10 +91,9 @@
                     .Include(m => m.Usuario)
                     .AsQueryable();
 
-                if (_fechaInicio.HasValue)
-                    query = query.Where(m => m.FechaIngreso >= _fechaInicio.Value);
-                if (_fechaFin.HasValue)
-                    query = query.Where(m => m.FechaIngreso <= _fechaFin.Value);
+
+                query = query.Where(m => m.FechaIngreso >= _fechaInicio);
+                query = query.Where(m => m.FechaIngreso <= _fechaFin);
                 if (_comunaId is > 0)
                     query = query.Where(m => m.ComunaId == _comunaId.Value);
                 if (!string.IsNullOrEmpty(_usuarioId))
@@ -114,6 +116,7 @@
                 _graficaPendiente = true;
                 StateHasChanged();
             }
+
         }
     </Authorized>
     <NotAuthorized>

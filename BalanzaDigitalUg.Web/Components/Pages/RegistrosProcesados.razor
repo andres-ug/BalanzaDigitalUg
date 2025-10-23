@@ -49,9 +49,9 @@
                 <tr>
                     <th>Id</th>
                     <th>Tipo</th>
-                    <th>Tamaño</th>
                     <th>Peso (kg)</th>
-                    <th>Usuario</th>
+                    <th>Usuario que entregó material</th>
+                    <th>Usuario que procesó material</th>
                     <th>Comuna</th>
                     <th>Fecha</th>
                 </tr>
@@ -62,8 +62,8 @@
                     <tr>
                         <td>@mat.Id</td>
                         <td>@mat.Tipo?.Nombre</td>
-                        <td>@mat.Tamanio?.Nombre</td>
                         <td>@mat.Peso</td>
+                        <td>@mat.UsuarioBalanza</td>
                         <td>@mat.Usuario?.UserName</td>
                         <td>@mat.Comuna?.Nombre</td>
                         <td>@mat.FechaIngreso.ToString("g")</td>
@@ -99,7 +99,7 @@
     private int TotalPaginas => _materiales is null ? 1 : (int)Math.Ceiling(_materiales.Count / (double)_tamanioPagina);
 
     private List<Comuna> _comunas = [];
-    private DateTime? _fechaInicio = DateTime.Now;
+    private DateTime? _fechaInicio = DateTime.Now.AddMonths(-1);
     private DateTime? _fechaFin = DateTime.Now;
     private int? _comunaId;
 
@@ -114,7 +114,6 @@
     {
         var query = Db.MaterialesReciclados
             .Include(m => m.Tipo)
-            .Include(m => m.Tamanio)
             .Include(m => m.Usuario)
             .Include(m => m.Comuna)
             .OrderByDescending(m => m.Id)

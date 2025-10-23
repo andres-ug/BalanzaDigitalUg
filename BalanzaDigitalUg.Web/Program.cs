@@ -19,17 +19,20 @@ builder.Services.AddScoped<AuthenticationStateProvider, IdentityRevalidatingAuth
 builder.Services.AddAuthentication(options =>
     {
         options.DefaultScheme = IdentityConstants.ApplicationScheme;
-        options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+        options.DefaultSignInScheme = IdentityConstants.ApplicationScheme;
     })
     .AddIdentityCookies();
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+// var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 // builder.Services.AddDbContext<ApplicationDbContext>(options =>
 //     options.UseSqlite(connectionString));
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseMySql(builder.Configuration.GetConnectionString("MySqlConnection"),
-        new MySqlServerVersion(new Version(8, 0, 32)))
-);
+
+builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase("InMemoryDb"));
+
+// builder.Services.AddDbContext<ApplicationDbContext>(options =>
+//     options.UseMySql(builder.Configuration.GetConnectionString("MySqlConnection"),
+//         new MySqlServerVersion(new Version(8, 0, 32)))
+// );
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
 builder.Services.AddIdentityCore<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = false)
@@ -49,8 +52,8 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var db = services.GetRequiredService<ApplicationDbContext>();
     db.Database.EnsureCreated();
-    await IntiialData.SeedUsersAsync(services);
-    await IntiialData.SeedRolesAsync(services);
+    await InitialData.SeedUsersAsync(services);
+    await InitialData.SeedRolesAsync(services);
 }
 
 // Configure the HTTP request pipeline.
